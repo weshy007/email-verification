@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage, send_mail
@@ -84,10 +85,38 @@ def signup(request):
     return render(request, 'signup.html')
 
 def signin(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password1 = request.POST['password1']
+        user = authenticate(username=username, password=password1)
+
+        if user is not None:
+            login(request, user)
+            username = user.username 
+            return render(request, 'index.html', {'username': username})
+        else:
+            messages.error(request, "Bad credentials") 
+            return redirect('home')          
     return render(request, 'signin.html')
 
-def activate(request):
-    return render(request, 'activation_failed.html')
+def activate(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
 
-def logout(request):
-    return render(request, 'logout.html')
+    if user is not None and generate_token.check_token(user, token):
+        user.is_active = True
+        user.save()
+        login(request, user)
+        messages.success(request, "Your Account has been activated")
+        return redirect('signin')
+    else:
+        return render(request, 'activation_failed.html')
+
+
+def signout(request):
+    logout(request)
+    messages.success(request, "Logged out successfully")
+    return redirect('home')
